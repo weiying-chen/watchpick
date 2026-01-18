@@ -319,9 +319,14 @@ def main() -> int:
             print(f"error: no matches for query={config.query!r} under {config.root}", file=sys.stderr)
             return 1
 
-    selected = _pick_with_fzf(files, config.root) or _pick_with_numbered_list(files, config.root)
-    if selected is None:
-        return 0
+    if shutil.which("fzf"):
+        selected = _pick_with_fzf(files, config.root)
+        if selected is None:
+            return 0
+    else:
+        selected = _pick_with_numbered_list(files, config.root)
+        if selected is None:
+            return 0
 
     file_path = selected.resolve()
     baseline_path: Path | None
