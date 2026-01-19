@@ -6,6 +6,7 @@ import shlex
 import shutil
 import subprocess
 import sys
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -81,25 +82,32 @@ def _pick_with_fzf(paths: list[Path], root: Path) -> Path | None:
         "--cycle",
     ]
 
-    proc = subprocess.run(
-        argv,
-        input=("\n".join(lines) + "\n").encode("utf-8"),
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+    selection_path = Path(
+        tempfile.NamedTemporaryFile(prefix="watchpick-fzf-", delete=False).name
     )
-    if proc.returncode != 0:
+    bind = (
+        "enter:execute-silent("
+        f"echo -n {{2}} > {shlex.quote(str(selection_path))}"
+        ")+abort"
+    )
+    argv.append(f"--bind={bind}")
+
+    try:
+        proc = subprocess.run(
+            argv,
+            input=("\n".join(lines) + "\n").encode("utf-8"),
+        )
+        selected = selection_path.read_text(encoding="utf-8").strip()
+    finally:
+        try:
+            selection_path.unlink()
+        except FileNotFoundError:
+            pass
+
+    if proc.returncode != 0 or not selected:
         return None
 
-    selected = proc.stdout.decode("utf-8").rstrip("\n")
-    if not selected:
-        return None
-
-    if "\t" in selected:
-        _, path_str = selected.split("\t", 1)
-    else:
-        path_str = selected
-
-    return Path(path_str)
+    return Path(selected)
 
 
 def _pick_with_numbered_list(paths: list[Path], root: Path) -> Path | None:
