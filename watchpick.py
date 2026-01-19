@@ -97,17 +97,25 @@ def _pick_with_fzf(paths: list[Path], root: Path) -> Path | None:
             argv,
             input=("\n".join(lines) + "\n").encode("utf-8"),
         )
-        selected = selection_path.read_text(encoding="utf-8").strip()
+        selected = _resolve_fzf_selection(selection_path, proc.returncode)
     finally:
         try:
             selection_path.unlink()
         except FileNotFoundError:
             pass
 
-    if proc.returncode != 0 or not selected:
-        return None
+    if selected:
+        return selected
+    return None
 
-    return Path(selected)
+
+def _resolve_fzf_selection(selection_path: Path, returncode: int) -> Path | None:
+    selected = selection_path.read_text(encoding="utf-8").strip()
+    if selected:
+        return Path(selected)
+    if returncode != 0:
+        return None
+    return None
 
 
 def _pick_with_numbered_list(paths: list[Path], root: Path) -> Path | None:
