@@ -377,7 +377,10 @@ def main() -> int:
             return 3
 
     if config.run:
-        return subprocess.run(argv).returncode
+        try:
+            return subprocess.run(argv).returncode
+        except KeyboardInterrupt:
+            return 130
 
     return 0
 
