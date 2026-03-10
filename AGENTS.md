@@ -1,4 +1,13 @@
-# Repository Guidelines
+# Agent Instructions
+
+## Git commits
+
+- Use short commit messages in sentence case (only the first word capitalized).
+- Do not use Conventional Commits prefixes (e.g. `feat:`, `fix:`).
+
+## Testing workflow
+
+- For every code change, add a generic test, make sure it fails first, then implement the code and make sure it passes.
 
 ## Project Structure
 
@@ -31,10 +40,10 @@ External tools/inputs:
   - `python3 watchpick.py --help`
   - Run with `--print --no-run` to validate command construction without executing `npx`.
 
-## Commit & Pull Request Guidelines
+## Pull request guidelines
 
-- This directory is not currently a Git repository, so there is no commit-message history to follow.
-- Recommended convention if you initialize Git: imperative subject lines (e.g., `Add --no-baseline flag`), small focused commits, and PRs that describe behavior changes and include example commands/output.
+- Keep changes small and focused.
+- Describe behavior changes and include example commands or output when relevant.
 
 ## Configuration & Safety Notes
 
