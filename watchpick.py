@@ -144,6 +144,18 @@ def _default_baseline_for(file_path: Path, baseline_root: Path | None) -> Path:
     return file_path.with_name(name)
 
 
+def _is_baseline_file(path: Path) -> bool:
+    return path.stem.endswith(".baseline")
+
+
+def _sibling_baseline_for(file_path: Path) -> Path:
+    return file_path.with_name(f"{file_path.stem}.baseline{file_path.suffix}")
+
+
+def _filter_files_with_baseline(paths: list[Path]) -> list[Path]:
+    return [p for p in paths if not _is_baseline_file(p) and _sibling_baseline_for(p).exists()]
+
+
 def _build_watch_argv(
     *,
     watch_ts: Path,
@@ -183,7 +195,7 @@ class Config:
     no_warn: bool
     baseline_root: Path | None
     baseline_override: Path | None
-    no_baseline: bool
+    has_baseline: bool
     copy: bool
     copy_cmd: str
     print_only: bool
@@ -260,9 +272,9 @@ def main() -> int:
         help="Override baseline path explicitly.",
     )
     parser.add_argument(
-        "--no-baseline",
+        "--has-baseline",
         action="store_true",
-        help="Omit --baseline entirely.",
+        help="Only show source .txt files that already have a sibling *.baseline<ext> file.",
     )
     parser.add_argument(
         "--copy",
@@ -313,7 +325,7 @@ def main() -> int:
         no_warn=bool(args.no_warn),
         baseline_root=baseline_root,
         baseline_override=baseline_override,
-        no_baseline=bool(args.no_baseline),
+        has_baseline=bool(args.has_baseline),
         copy=bool(args.copy),
         copy_cmd=args.copy_cmd,
         print_only=bool(args.print_only),
@@ -324,6 +336,8 @@ def main() -> int:
     files = _iter_files(config.root, recursive=config.recursive)
     if config.ext is not None:
         files = [p for p in files if p.suffix == config.ext]
+    if config.has_baseline:
+        files = _filter_files_with_baseline(files)
     if not files:
         print(f"error: no files found under {config.root}", file=sys.stderr)
         return 1
@@ -346,9 +360,7 @@ def main() -> int:
 
     file_path = selected.resolve()
     baseline_path: Path | None
-    if config.no_baseline:
-        baseline_path = None
-    elif config.baseline_override is not None:
+    if config.baseline_override is not None:
         baseline_path = config.baseline_override
     else:
         baseline_path = _default_baseline_for(file_path, config.baseline_root)
