@@ -13,6 +13,24 @@ from pathlib import Path
 
 SKIP_DIR_NAMES = {".git", "node_modules", "dist", "build", "__pycache__"}
 
+# Keep all default subtitle findings except CPS_BALANCE.
+DEFAULT_SUBS_RULE_FILTERS = [
+    "MAX_CHARS",
+    "BLOCK_STRUCTURE",
+    "TIMESTAMP_FORMAT",
+    "LEADING_WHITESPACE",
+    "SPAN_GAP",
+    "MERGE_CANDIDATE",
+    "CAPITALIZATION",
+    "DASH_STYLE",
+    "PERCENT_STYLE",
+    "NUMBER_STYLE",
+    "PUNCTUATION",
+    "MAX_CPS",
+    "MIN_CPS",
+    "BASELINE",
+]
+
 
 def _repo_root() -> Path:
     return Path(__file__).resolve().parent.parent
@@ -169,6 +187,12 @@ def _build_watch_argv(
     argv += ["--type", type_]
     if no_warn:
         argv.append("--no-warn")
+
+    # Apply default filter set for subtitle mode: all defaults except CPS_BALANCE.
+    if type_ == "subs":
+        for rule in DEFAULT_SUBS_RULE_FILTERS:
+            argv += ["--rule", rule]
+
     if baseline_path is not None:
         argv += ["--baseline", str(baseline_path)]
     argv += passthrough
@@ -252,14 +276,8 @@ def main() -> int:
     parser.add_argument(
         "--no-warn",
         action="store_true",
-        default=True,
-        help="Include --no-warn (default: true).",
-    )
-    parser.add_argument(
-        "--warn",
-        action="store_false",
-        dest="no_warn",
-        help="Do not include --no-warn.",
+        default=False,
+        help="Include --no-warn (default: false).",
     )
     parser.add_argument(
         "--baseline-root",
