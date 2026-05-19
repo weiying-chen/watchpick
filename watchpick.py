@@ -162,6 +162,8 @@ def _build_watch_argv(
     type_: str,
     no_warn: bool,
     baseline_path: Path | None,
+    max_cps: int | None,
+    min_cps: int | None,
     passthrough: list[str],
 ) -> list[str]:
     argv: list[str] = ["npx", "tsx", str(watch_ts), str(file_path)]
@@ -171,6 +173,10 @@ def _build_watch_argv(
 
     if baseline_path is not None:
         argv += ["--baseline", str(baseline_path)]
+    if max_cps is not None:
+        argv += ["--max-cps", str(max_cps)]
+    if min_cps is not None:
+        argv += ["--min-cps", str(min_cps)]
     argv += passthrough
     return argv
 
@@ -196,6 +202,8 @@ class Config:
     baseline_root: Path | None
     baseline_override: Path | None
     has_baseline: bool
+    max_cps: int | None
+    min_cps: int | None
     copy: bool
     copy_cmd: str
     print_only: bool
@@ -271,6 +279,18 @@ def main() -> int:
         help="Only show source .txt files that already have a sibling *.baseline<ext> file.",
     )
     parser.add_argument(
+        "--max-cps",
+        type=int,
+        default=None,
+        help="Pass --max-cps to watch.ts.",
+    )
+    parser.add_argument(
+        "--min-cps",
+        type=int,
+        default=None,
+        help="Pass --min-cps to watch.ts.",
+    )
+    parser.add_argument(
         "--copy",
         action="store_true",
         help="Copy the generated command to the clipboard.",
@@ -320,6 +340,8 @@ def main() -> int:
         baseline_root=baseline_root,
         baseline_override=baseline_override,
         has_baseline=bool(args.has_baseline),
+        max_cps=args.max_cps,
+        min_cps=args.min_cps,
         copy=bool(args.copy),
         copy_cmd=args.copy_cmd,
         print_only=bool(args.print_only),
@@ -365,6 +387,8 @@ def main() -> int:
         type_=config.type_,
         no_warn=config.no_warn,
         baseline_path=baseline_path,
+        max_cps=config.max_cps,
+        min_cps=config.min_cps,
         passthrough=config.passthrough,
     )
     command = _shell_join(argv)
