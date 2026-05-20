@@ -53,5 +53,13 @@ class BuildWatchArgvTests(unittest.TestCase):
         self.assertNotIn("--min-cps", argv)
 
 
+class WatchWorkdirTests(unittest.TestCase):
+    def test_derives_repo_root_from_standard_watch_ts_layout(self) -> None:
+        workdir = watchpick._watch_workdir_from_watch_ts(
+            Path("/home/weiying/node/sub/src/cli/watch.ts")
+        )
+        self.assertEqual(workdir, Path("/home/weiying/node/sub"))
+
+
 if __name__ == "__main__":
     unittest.main()

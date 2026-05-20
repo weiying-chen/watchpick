@@ -181,6 +181,17 @@ def _build_watch_argv(
     return argv
 
 
+def _watch_workdir_from_watch_ts(watch_ts: Path) -> Path:
+    # Standard layout: <repo>/src/cli/watch.ts
+    if (
+        watch_ts.name == "watch.ts"
+        and watch_ts.parent.name == "cli"
+        and watch_ts.parent.parent.name == "src"
+    ):
+        return watch_ts.parent.parent.parent
+    return watch_ts.parent
+
+
 def _shell_join(argv: list[str]) -> str:
     return " ".join(shlex.quote(a) for a in argv)
 
@@ -408,7 +419,8 @@ def main() -> int:
 
     if config.run:
         try:
-            return subprocess.run(argv).returncode
+            workdir = _watch_workdir_from_watch_ts(config.watch_ts)
+            return subprocess.run(argv, cwd=workdir).returncode
         except KeyboardInterrupt:
             return 130
 
