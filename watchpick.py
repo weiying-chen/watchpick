@@ -11,12 +11,6 @@ from dataclasses import dataclass
 from pathlib import Path
 
 
-SKIP_DIR_NAMES = {".git", "node_modules", "dist", "build", "__pycache__"}
-
-def _repo_root() -> Path:
-    return Path(__file__).resolve().parent.parent
-
-
 def _default_watch_ts() -> Path:
     env = os.environ.get("SUB_WATCH_TS")
     if env:
@@ -24,28 +18,8 @@ def _default_watch_ts() -> Path:
     return Path('~/node/sub/src/cli/watch.ts').expanduser()
 
 
-def _iter_files(root: Path, recursive: bool) -> list[Path]:
-    if recursive:
-        results: list[Path] = []
-        for dirpath, dirnames, filenames in os.walk(root):
-            dirnames[:] = [
-                d
-                for d in dirnames
-                if not d.startswith(".") and d not in SKIP_DIR_NAMES and not d.endswith(".tmp")
-            ]
-            for filename in filenames:
-                path = Path(dirpath) / filename
-                if path.is_file():
-                    results.append(path)
-        return results
-
+def _iter_files(root: Path) -> list[Path]:
     return [p for p in root.iterdir() if p.is_file()]
-
-
-def _normalize_ext(ext: str | None) -> str | None:
-    if not ext:
-        return None
-    return ext if ext.startswith(".") else f".{ext}"
 
 
 def _sort_by_mtime_desc(paths: list[Path]) -> list[Path]:
@@ -190,72 +164,26 @@ def _watch_workdir_from_watch_ts(watch_ts: Path) -> Path:
     ):
         return watch_ts.parent.parent.parent
     return watch_ts.parent
-
-
-def _shell_join(argv: list[str]) -> str:
-    return " ".join(shlex.quote(a) for a in argv)
-
-
-def _copy_text(text: str, copy_cmd: str) -> None:
-    argv = shlex.split(copy_cmd)
-    subprocess.run(argv, input=(text + "\n").encode("utf-8"), check=True)
-
-
 @dataclass(frozen=True)
 class Config:
     root: Path
-    recursive: bool
-    ext: str | None
-    query: str
     watch_ts: Path
     type_: str
-    no_warn: bool
-    baseline_root: Path | None
-    baseline_override: Path | None
-    has_baseline: bool
-    max_cps: int | None
-    min_cps: int | None
-    copy: bool
-    copy_cmd: str
-    print_only: bool
-    run: bool
     passthrough: list[str]
+
+
+def _filter_picker_files(paths: list[Path], type_: str) -> list[Path]:
+    if type_ == "subs":
+        visible = [p for p in paths if not _is_baseline_file(p)]
+        return _filter_files_with_baseline(visible)
+    return paths
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(
         description=(
-            "Interactively pick a text file (no need to type Chinese), then run the watch CLI "
-            "with a derived baseline path."
+            "Interactively pick a text file, then run the watch CLI."
         )
-    )
-    parser.add_argument(
-        "query",
-        nargs="?",
-        default="",
-        help="Optional ASCII hint to pre-filter filenames before picking (e.g. '(1)', '2024').",
-    )
-    parser.add_argument(
-        "--root",
-        default=os.environ.get("TEXT_ROOT") or ".",
-        help="Search root (default: $TEXT_ROOT or current directory).",
-    )
-    parser.add_argument(
-        "--recursive",
-        action="store_true",
-        default=False,
-        help="Search recursively under --root (default: false).",
-    )
-    parser.add_argument(
-        "--no-recursive",
-        action="store_false",
-        dest="recursive",
-        help="Only search direct children of --root (default).",
-    )
-    parser.add_argument(
-        "--ext",
-        default="txt",
-        help="File extension filter (default: txt). Use '*' to disable filtering.",
     )
     parser.add_argument(
         "--watch-ts",
@@ -268,113 +196,33 @@ def main() -> int:
         default="subs",
         help="Value for --type (default: subs).",
     )
-    parser.add_argument(
-        "--no-warn",
-        action="store_true",
-        default=False,
-        help="Include --no-warn (default: false).",
-    )
-    parser.add_argument(
-        "--baseline-root",
-        default=os.environ.get("BASELINE_ROOT"),
-        help="Derive baseline as <baseline-root>/<stem>.baseline<ext> (default: $BASELINE_ROOT).",
-    )
-    parser.add_argument(
-        "--baseline",
-        default=None,
-        help="Override baseline path explicitly.",
-    )
-    parser.add_argument(
-        "--has-baseline",
-        action="store_true",
-        help="Only show source .txt files that already have a sibling *.baseline<ext> file.",
-    )
-    parser.add_argument(
-        "--max-cps",
-        type=int,
-        default=None,
-        help="Pass --max-cps to watch.ts.",
-    )
-    parser.add_argument(
-        "--min-cps",
-        type=int,
-        default=None,
-        help="Pass --min-cps to watch.ts.",
-    )
-    parser.add_argument(
-        "--copy",
-        action="store_true",
-        help="Copy the generated command to the clipboard.",
-    )
-    parser.add_argument(
-        "--copy-cmd",
-        default="wl-copy",
-        help="Clipboard command (default: wl-copy).",
-    )
-    parser.add_argument(
-        "--print",
-        dest="print_only",
-        action="store_true",
-        help="Print the command (default: false).",
-    )
-    parser.add_argument(
-        "--no-run",
-        dest="run",
-        action="store_false",
-        default=True,
-        help="Do not execute the command; useful with --print/--copy.",
-    )
     args, passthrough = parser.parse_known_args()
 
-    root = Path(args.root).expanduser()
+    root = Path(os.environ.get("TEXT_ROOT") or ".").expanduser()
     if not root.exists():
-        print(f"error: --root does not exist: {root}", file=sys.stderr)
+        print(f"error: TEXT_ROOT does not exist: {root}", file=sys.stderr)
         return 1
 
-    ext = None if args.ext == "*" else _normalize_ext(args.ext)
     watch_ts = Path(args.watch_ts).expanduser().resolve()
     if not watch_ts.exists():
         print(f"error: watch.ts not found: {watch_ts} (set $SUB_WATCH_TS or --watch-ts)", file=sys.stderr)
         return 1
 
-    baseline_root = Path(args.baseline_root).expanduser().resolve() if args.baseline_root else None
-    baseline_override = Path(args.baseline).expanduser().resolve() if args.baseline else None
-
     config = Config(
         root=root.resolve(),
-        recursive=bool(args.recursive),
-        ext=ext,
-        query=args.query.strip(),
         watch_ts=watch_ts,
         type_=args.type_,
-        no_warn=bool(args.no_warn),
-        baseline_root=baseline_root,
-        baseline_override=baseline_override,
-        has_baseline=bool(args.has_baseline),
-        max_cps=args.max_cps,
-        min_cps=args.min_cps,
-        copy=bool(args.copy),
-        copy_cmd=args.copy_cmd,
-        print_only=bool(args.print_only),
-        run=bool(args.run),
         passthrough=passthrough[1:] if passthrough[:1] == ["--"] else passthrough,
     )
 
-    files = _iter_files(config.root, recursive=config.recursive)
-    if config.ext is not None:
-        files = [p for p in files if p.suffix == config.ext]
-    if config.has_baseline:
-        files = _filter_files_with_baseline(files)
+    files = _iter_files(config.root)
+    files = [p for p in files if p.suffix == ".txt"]
+    files = _filter_picker_files(files, config.type_)
     if not files:
         print(f"error: no files found under {config.root}", file=sys.stderr)
         return 1
 
     files = _sort_by_mtime_desc(files)
-    if config.query:
-        files = [p for p in files if config.query.casefold() in p.name.casefold()]
-        if not files:
-            print(f"error: no matches for query={config.query!r} under {config.root}", file=sys.stderr)
-            return 1
 
     if shutil.which("fzf"):
         selected = _pick_with_fzf(files, config.root)
@@ -386,45 +234,24 @@ def main() -> int:
             return 0
 
     file_path = selected.resolve()
-    baseline_path: Path | None
-    if config.baseline_override is not None:
-        baseline_path = config.baseline_override
-    else:
-        baseline_path = _default_baseline_for(file_path, config.baseline_root)
+    baseline_path = _default_baseline_for(file_path, None) if config.type_ == "subs" else None
 
     argv = _build_watch_argv(
         watch_ts=config.watch_ts,
         file_path=file_path,
         type_=config.type_,
-        no_warn=config.no_warn,
+        no_warn=False,
         baseline_path=baseline_path,
-        max_cps=config.max_cps,
-        min_cps=config.min_cps,
+        max_cps=None,
+        min_cps=None,
         passthrough=config.passthrough,
     )
-    command = _shell_join(argv)
 
-    if config.print_only or config.copy or not config.run:
-        print(command)
-
-    if config.copy:
-        try:
-            _copy_text(command, config.copy_cmd)
-        except FileNotFoundError:
-            print(f"error: copy command not found: {config.copy_cmd}", file=sys.stderr)
-            return 3
-        except subprocess.CalledProcessError as exc:
-            print(f"error: copy failed (exit {exc.returncode}): {config.copy_cmd}", file=sys.stderr)
-            return 3
-
-    if config.run:
-        try:
-            workdir = _watch_workdir_from_watch_ts(config.watch_ts)
-            return subprocess.run(argv, cwd=workdir).returncode
-        except KeyboardInterrupt:
-            return 130
-
-    return 0
+    try:
+        workdir = _watch_workdir_from_watch_ts(config.watch_ts)
+        return subprocess.run(argv, cwd=workdir).returncode
+    except KeyboardInterrupt:
+        return 130
 
 
 if __name__ == "__main__":

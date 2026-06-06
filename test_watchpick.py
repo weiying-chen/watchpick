@@ -52,6 +52,19 @@ class BuildWatchArgvTests(unittest.TestCase):
         self.assertNotIn("--max-cps", argv)
         self.assertNotIn("--min-cps", argv)
 
+    def test_does_not_include_baseline_when_not_provided(self) -> None:
+        argv = watchpick._build_watch_argv(
+            watch_ts=Path("/tmp/watch.ts"),
+            file_path=Path("/tmp/input.txt"),
+            type_="news",
+            no_warn=False,
+            baseline_path=None,
+            max_cps=None,
+            min_cps=None,
+            passthrough=[],
+        )
+        self.assertNotIn("--baseline", argv)
+
 
 class WatchWorkdirTests(unittest.TestCase):
     def test_derives_repo_root_from_standard_watch_ts_layout(self) -> None:
@@ -59,6 +72,39 @@ class WatchWorkdirTests(unittest.TestCase):
             Path("/home/weiying/node/sub/src/cli/watch.ts")
         )
         self.assertEqual(workdir, Path("/home/weiying/node/sub"))
+
+
+class FilterPickerFilesTests(unittest.TestCase):
+    def test_subs_only_shows_files_with_sibling_baseline(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            root = Path(tempdir)
+            keep = root / "keep.txt"
+            skip = root / "skip.txt"
+            baseline = root / "keep.baseline.txt"
+            keep.write_text("", encoding="utf-8")
+            skip.write_text("", encoding="utf-8")
+            baseline.write_text("", encoding="utf-8")
+
+            files = [keep, skip, baseline]
+
+            self.assertEqual(watchpick._filter_picker_files(files, "subs"), [keep])
+
+    def test_news_shows_baseline_files_and_normal_files(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            root = Path(tempdir)
+            normal = root / "normal.txt"
+            baseline = root / "normal.baseline.txt"
+            other = root / "other.txt"
+            normal.write_text("", encoding="utf-8")
+            baseline.write_text("", encoding="utf-8")
+            other.write_text("", encoding="utf-8")
+
+            files = [normal, baseline, other]
+
+            self.assertEqual(
+                watchpick._filter_picker_files(files, "news"),
+                [normal, baseline, other],
+            )
 
 
 if __name__ == "__main__":
