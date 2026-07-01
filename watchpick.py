@@ -234,7 +234,7 @@ def main() -> int:
             return 0
 
     file_path = selected.resolve()
-    baseline_path = _default_baseline_for(file_path, None) if config.type_ == "subs" else None
+    baseline_path = None
 
     argv = _build_watch_argv(
         watch_ts=config.watch_ts,
