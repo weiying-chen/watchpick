@@ -106,6 +106,20 @@ class FilterPickerFilesTests(unittest.TestCase):
                 [normal, baseline, other],
             )
 
+    def test_dramas_only_shows_files_with_sibling_baseline(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            root = Path(tempdir)
+            keep = root / "keep.txt"
+            skip = root / "skip.txt"
+            baseline = root / "keep.baseline.txt"
+            keep.write_text("", encoding="utf-8")
+            skip.write_text("", encoding="utf-8")
+            baseline.write_text("", encoding="utf-8")
+
+            files = [keep, skip, baseline]
+
+            self.assertEqual(watchpick._filter_picker_files(files, "dramas"), [keep])
+
 
 if __name__ == "__main__":
     unittest.main()

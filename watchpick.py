@@ -173,7 +173,7 @@ class Config:
 
 
 def _filter_picker_files(paths: list[Path], type_: str) -> list[Path]:
-    if type_ == "subs":
+    if type_ in {"subs", "dramas"}:
         visible = [p for p in paths if not _is_baseline_file(p)]
         return _filter_files_with_baseline(visible)
     return paths
