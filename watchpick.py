@@ -136,8 +136,6 @@ def _build_watch_argv(
     type_: str,
     no_warn: bool,
     baseline_path: Path | None,
-    max_cps: int | None,
-    min_cps: int | None,
     passthrough: list[str],
 ) -> list[str]:
     argv: list[str] = ["npx", "tsx", str(watch_ts), str(file_path)]
@@ -147,12 +145,24 @@ def _build_watch_argv(
 
     if baseline_path is not None:
         argv += ["--baseline", str(baseline_path)]
-    if max_cps is not None:
-        argv += ["--max-cps", str(max_cps)]
-    if min_cps is not None:
-        argv += ["--min-cps", str(min_cps)]
-    argv += passthrough
+    argv += _without_cps_overrides(passthrough)
     return argv
+
+
+def _without_cps_overrides(args: list[str]) -> list[str]:
+    filtered: list[str] = []
+    skip_value = False
+    for arg in args:
+        if skip_value:
+            skip_value = False
+            continue
+        if arg in {"--max-cps", "--min-cps"}:
+            skip_value = True
+            continue
+        if arg.startswith("--max-cps=") or arg.startswith("--min-cps="):
+            continue
+        filtered.append(arg)
+    return filtered
 
 
 def _watch_workdir_from_watch_ts(watch_ts: Path) -> Path:
@@ -242,8 +252,6 @@ def main() -> int:
         type_=config.type_,
         no_warn=False,
         baseline_path=baseline_path,
-        max_cps=None,
-        min_cps=None,
         passthrough=config.passthrough,
     )
 
